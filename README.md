@@ -2,8 +2,6 @@
 
 Professional desktop application for analyzing website metrics with beautiful data visualization.
 
-![App Screenshot](assets/screenshot.png)
-
 ## ✨ Features
 
 - 🚀 **Fast Web Scraping** - Analyze any website in seconds
