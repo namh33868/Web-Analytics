@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from datetime import datetime
+from pathlib import Path
+import re
 from core.scraper import WebScraper
 from core.db_manager import DatabaseManager
 from gui.charts import ChartGenerator
@@ -32,18 +34,18 @@ class ScrapeWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.version = "1.0.0"  # VERSION HIỆN TẠI
-        self.update_url = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/releases/latest"
+        self.version = "1.0.1.1"  # VERSION HIỆN TẠI
+        self.update_url = "https://api.github.com/repos/namh33868/Web-Analytics/releases/latest"
+        self.update_checking = False      # tránh check trùng
+        self.update_dialog_shown = False  # tránh mở nhiều dialog
 
         self.db = DatabaseManager()
         self.init_ui()
         self.refresh_all()
 
-        # CHECK UPDATE KHI KHỞI ĐỘNG (sau 2 giây)
-        QTimer.singleShot(2000, self.check_for_updates)
-
     def init_ui(self):
-        self.setWindowTitle("Web Analytics Dashboard")
+        # Hiển thị version ngay trên title
+        self.setWindowTitle(f"Web Analytics Dashboard v{self.version}")
         self.setGeometry(100, 100, 1400, 850)
         
         # Central widget
@@ -68,9 +70,15 @@ class MainWindow(QMainWindow):
         
         # Title
         title = QLabel("🌐 Web Analytics")
-        title.setStyleSheet("font-size: 26px; font-weight: bold; color: #60a5fa; margin-bottom: 20px;")
+        title.setStyleSheet("font-size: 26px; font-weight: bold; color: #60a5fa; margin-bottom: 4px;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(title)
+
+        # Version label ngay dưới title
+        self.version_label = QLabel(f"Version: v{self.version}")
+        self.version_label.setStyleSheet("color: #9ca3af; font-size: 12px; margin-bottom: 16px;")
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        left_layout.addWidget(self.version_label)
         
         # URL Input
         self.url_input = QLineEdit()
@@ -228,6 +236,12 @@ class MainWindow(QMainWindow):
     # ===== AUTO-UPDATE =====
     def check_for_updates(self):
         """Kiểm tra update từ GitHub"""
+        # CHỈ chạy khi bấm nút (đã bỏ auto-check ở __init__)
+        # Nếu đang check hoặc đã có dialog mở thì bỏ qua
+        if self.update_checking or self.update_dialog_shown:
+            return
+        self.update_checking = True
+
         if hasattr(self, "update_btn"):
             self.update_btn.setText("⏳ Checking...")
             self.update_btn.setEnabled(False)
@@ -239,24 +253,65 @@ class MainWindow(QMainWindow):
         self.update_checker.start()
 
     def show_update_dialog(self, update_info):
-        """Hiện dialog update"""
+        """Hiện dialog update và tự động bắt đầu cập nhật"""
+        # Nếu đã có dialog rồi thì không mở thêm
+        if self.update_dialog_shown:
+            return
+        self.update_dialog_shown = True
+        self.update_checking = False
+
+        # Cập nhật version local (hiển thị + ghi lại vào file source)
+        new_version = update_info.get("version")
+        if new_version:
+            self.update_local_version(new_version)
+
         if hasattr(self, "update_btn"):
-            self.update_btn.setText("🔄 Check Updates")
-            self.update_btn.setEnabled(True)
+            self.update_btn.setText("🔄 Updating...")
+            self.update_btn.setEnabled(False)
 
         dialog = UpdateDialog(self, update_info)
+        # Tự động bắt đầu quá trình download/cài đặt mà không cần bấm nút
+        dialog.start_update()
         dialog.exec()
+        # Sau khi dialog đóng, cho phép kiểm tra lại ở lần sau
+        self.update_dialog_shown = False
 
     def on_no_update(self):
         """Đã là phiên bản mới nhất"""
+        self.update_checking = False
         if hasattr(self, "update_btn"):
-            self.update_btn.setText("✅ Up to date")
+            self.update_btn.setText("✅ Không có bản mới")
             self.update_btn.setEnabled(True)
             QTimer.singleShot(3000, lambda: self.update_btn.setText("🔄 Check Updates"))
 
     def on_update_error(self, error_msg):
         """Lỗi khi check update"""
+        self.update_checking = False
         if hasattr(self, "update_btn"):
             self.update_btn.setText("❌ Check Failed")
             self.update_btn.setEnabled(True)
         print(f"Update check error: {error_msg}")
+
+    def update_local_version(self, new_version: str):
+        """Cập nhật version hiển thị và tự động sửa dòng self.version trong source.
+        Nếu đang chạy từ EXE (không có source) thì sẽ bỏ qua phần ghi file."""
+        try:
+            # Cập nhật trong runtime
+            self.version = new_version
+            self.setWindowTitle(f"Web Analytics Dashboard v{self.version}")
+            if hasattr(self, "version_label"):
+                self.version_label.setText(f"Version: v{self.version}")
+
+            # Cố gắng sửa file gui/main_window.py để lần run sau cũng đúng version
+            main_path = Path(__file__).resolve()
+            text = main_path.read_text(encoding="utf-8")
+
+            # Thay đúng dòng self.version = "x.y.z"  # VERSION HIỆN TẠI
+            pattern = r'self\.version\s*=\s*"[0-9\.]+"\s*# VERSION HIỆN TẠI'
+            replacement = f'self.version = "{new_version}"  # VERSION HIỆN TẠI'
+            new_text, count = re.subn(pattern, replacement, text, count=1)
+            if count == 1:
+                main_path.write_text(new_text, encoding="utf-8")
+        except Exception as e:
+            # Không làm crash app chỉ vì lỗi ghi file
+            print(f"Warning: could not update source version: {e}")

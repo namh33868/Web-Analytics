@@ -25,6 +25,12 @@ class UpdateChecker(QThread):
         try:
             # Method 1: GitHub Releases
             response = requests.get(self.update_url, timeout=10)
+
+            # Nếu repo chưa có release → coi như không có update, không báo lỗi
+            if response.status_code == 404:
+                self.no_update.emit()
+                return
+
             response.raise_for_status()
             
             latest = response.json()
