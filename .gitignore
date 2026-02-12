@@ -1,0 +1,20 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual env
+venv/
+.env/
+
+# Build / dist
+build/
+dist/
+*.spec
+
+# Logs & data
+logs/
+data/analytics.db
+
+# IDE
+.vscode/
+.cursor/
