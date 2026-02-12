@@ -21,7 +21,8 @@ Professional desktop application for analyzing website metrics with beautiful da
 
 | Dashboard | Analytics |
 |-----------|-----------|
-| ![](assets/dashboard.png) | ![](assets/charts.png) |
+| <img width="1396" height="867" alt="image" src="https://github.com/user-attachments/assets/ac4182c6-d288-4a6c-b972-19e52f9b8bd8" /> | <img width="1917" height="1022" alt="image" src="https://github.com/user-attachments/assets/4f9605a0-6701-4943-8b47-950b08217f81" />
+ |
 
 ## 📦 Installation
 
